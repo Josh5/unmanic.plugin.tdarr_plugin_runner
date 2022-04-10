@@ -382,10 +382,4 @@ def generate_ffmpeg_command(in_file, out_file, params):
     preset0 = re.sub(r"'", "'\"'\"'", presetSplit[0])
     preset1 = re.sub(r"'", "'\"'\"'", presetSplit[1])
 
-    return [
-        "ffmpeg",
-        preset0,
-        " -i '" + in_file + "' ",
-        preset1,
-        "'" + out_file + "'",
-    ]
+    return "ffmpeg " + preset0 + " -i '" + in_file + "' " + preset1 + " '" + out_file + "' "
