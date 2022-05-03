@@ -169,6 +169,17 @@ def fetch_bulk_plugin_details(plugin_ids):
     for plugin_id in plugin_ids:
         plugin_ids_queue.put(plugin_id)
 
+    # Fetch cached results
+    install_data = {}
+    install_data_file = os.path.join(tdarr_plugins_path, 'install_data.json')
+    try:
+        with open(install_data_file) as infile:
+            install_data = json.load(infile)
+        if install_data.get('plugins_list') is not None and install_data.get('plugins_dict') is not None:
+            return install_data.get('plugins_list'), install_data.get('plugins_dict')
+    except Exception as e:
+        logger.warning("Unable to read cache data: '{}'".format(str(e)))
+
     # Start X threads to process plugin data fetching
     thread_list = []
     for thread_id in range(8):
@@ -194,6 +205,12 @@ def fetch_bulk_plugin_details(plugin_ids):
         plugin_data['id'] = plugin_id
         plugins_list.append(plugin_data)
         plugins_dict[plugin_id] = plugin_data
+
+    # Cache results for next time
+    install_data['plugins_list'] = plugins_list
+    install_data['plugins_dict'] = plugins_dict
+    with open(install_data_file, 'w') as f:
+        json.dump(install_data, f, indent=4)
 
     return plugins_list, plugins_dict
 
@@ -239,11 +256,14 @@ def set_global_config(library_id, config):
 
 def request_get_tdarr_repo(data):
     arguments = data.get('arguments', {})
-    force_update = False
-    if arguments.get('force_update') and str(arguments.get('force_update')[0].decode("utf-8")) == 'true':
-        force_update = True
 
-    update_repo(force_update)
+    # Update the repo if requested or if it does not yet exist
+    if arguments.get('force_update') and str(arguments.get('force_update')[0].decode("utf-8")) == 'true':
+        logger.debug("Request was to force an update")
+        update_repo(force=True)
+    elif not os.path.exists(tdarr_plugins_path):
+        logger.debug("No plugins exist... trigger update")
+        update_repo(force=True)
 
     plugins_list, plugins_dict = fetch_all_plugin_details()
     return {
@@ -646,7 +666,7 @@ def render_frontend_panel(data):
 
     :param data:
     :return:
-    
+
     """
     # API
     if data.get('path') in ['tdarr_repo', '/tdarr_repo', '/tdarr_repo/']:
